@@ -14,8 +14,6 @@ import plotly.express as px
 import plotly.graph_objs as go
 import plotly.io as pio
 
-
-
 pio.templates["nice"] = go.layout.Template(
     layout={
         # Fonts
@@ -59,30 +57,6 @@ SIDEBAR_STYLE = {
     'left': 0,
     "padding": "2rem 1rem",
 }
-table_header_style = {
-    'background-color': 'rgb(210, 210, 210)',
-    'font-weight': 'bold',
-    'font-size': '12px',
-    'text-align': 'left',
-}
-table_data_style = {
-    'font-size': '12px',
-    'text-align': 'left',
-    'whiteSpace': 'none',
-    'height': 'auto',
-    'lineHeight': '15px',
-    'width': "50px"
-}
-table_cell_style = {
-    "padding": "5px",
-    "height": "auto",
-    "minWidth": "100px",
-    "width": "1o0px",
-    "maxWidth": "100px",  # all three widths are needed
-    "whiteSpace": "normal",  #
-}
-table_style = {"overflow": "hidden",
-               "padding": "15px", }
 
 sidebar = dbc.Navbar([
     dbc.Container(
@@ -101,6 +75,144 @@ bleow_nav = dbc.Container([
         html.Hr(),
     ])
 ])
+
+
+class DataTables:
+    DATA: pd.DataFrame = []
+    TITLE: str = 'Default'
+    LEFT: int = 4
+    RIGHT: int = 8
+
+    def __init__(self,
+                 data=DATA,
+                 left=LEFT, ):
+        self.data = data
+        self.left = left
+        self.right = 12 - left
+
+    # pd.description的reformat再輸出
+    def _get_data_description(self):
+        buffer = io.StringIO()
+        self.data.info(buf=buffer)
+        lines = buffer.getvalue().splitlines()
+        details = (pd.DataFrame([x.split() for x in lines[5:-2]], columns=lines[3].split())
+                   .drop('Count', axis=1)
+                   .rename(columns={'Non-Null': 'Non-Null Count'})
+                   .rename(columns={'#': 'number'}))
+        return details
+
+    # 將任何DF的column調成datatable的column的輸出結構
+    @staticmethod
+    def _get_data_column_data_table(anydf: pd.DataFrame):
+        column = anydf.columns.to_list()
+        labels = []
+        for i in column:
+            x = {
+                "name": i,
+                "id": i
+            }
+            labels.append(x)
+        return labels
+
+    # 將任何DF轉成我想要的dataframe樣子，樣式可以在class固定變數調整裡面調整
+
+    @staticmethod
+    def _datable_with_style(data, columns):
+        table_header_style = {
+            'background-color': 'rgb(210, 210, 210)',
+            'font-weight': 'bold',
+            'font-size': '12px',
+            'text-align': 'left',
+        }
+        table_data_style = {
+            'font-size': '12px',
+            'text-align': 'left',
+            'whiteSpace': 'none',
+            'height': 'auto',
+            'lineHeight': '15px',
+            'width': "50px"
+        }
+        table_cell_style = {
+            "padding": "5px",
+            "height": "auto",
+            "minWidth": "100px",
+            "width": "1o0px",
+            "maxWidth": "100px",  # all three widths are needed
+            "whiteSpace": "normal",  #
+        }
+        table_style = {"overflow": "hidden",
+                       "padding": "15px", }
+        return dash_table.DataTable(
+            columns=columns,
+            data=data,
+            # style_table={'margin-top': '100px'},
+            style_header=table_header_style,
+            style_data=table_data_style,
+            style_data_conditional=[{
+                'if': {'row_index': 'odd'},
+                'background-color': '#cfd8dc'}],
+            sort_action="native",
+            sort_mode="single",  # 排序模式
+            style_table=table_style,
+            style_cell=table_cell_style,
+            page_size=11,
+            # fixed_columns={'headers': True, 'data': 2},
+            fixed_rows={'headers': True, 'data': 0}
+        )
+
+    def _get_datades_table(self):
+        return self._datable_with_style(columns=self._get_data_column_data_table(self._get_data_description()),
+                                        data=self._get_data_description().to_dict('records'))
+
+    def gen_tabled_info(self,
+                        title: str = TITLE,
+                        left: int = LEFT):
+        left = left
+
+        table = self._get_datades_table()
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(dcc.Markdown('''  ''', style={'font-family': '標楷體', 'padding': '15px', 'font-size': '20px'}),
+                        width=left),
+                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
+            ])
+        ])
+
+    def gen_preview_table(self,
+                          title: str = TITLE,
+                          head: int = 500,
+                          left: int = LEFT):
+        head = head
+        title = title
+        left = left
+        table = self._datable_with_style(data=self.data.head(head).to_dict('records'),
+                                         columns=self._get_data_column_data_table(self.data))
+        return dbc.Container([
+            dbc.Row([
+                dbc.Col(dcc.Markdown(), width=left),
+                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
+            ])
+        ])
+
+    #
+    def gen_description_table(self,
+                              title: str = TITLE,
+                              left: int = LEFT,
+                              round_: int = 5):
+        left = left
+        title = title
+        round_ = round_
+        table = self._datable_with_style(
+            data=self.data.describe().round(round_).reset_index().to_dict('records'),
+            columns=self._get_data_column_data_table(self.data.describe().reset_index()))
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(dcc.Markdown(), width=left),
+                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
+            ])
+        ])
 
 
 class SideBar:
@@ -220,9 +332,14 @@ class BarAndDes:
         self.figid = figid
 
     def _gen_barchart(self):
-        fig = px.bar(self.data, x=self.columnx, y=self.columny, title=self.title, color=self.color, labels=self.label,
+        fig = px.bar(self.data, x=self.columnx, y=self.columny, title=self.title, color=self.color,
+                     labels=self.label,
                      hover_data=self.HOVER, template='nice', barmode=self.barmode)
         return fig
+
+    '''
+    下面是拿來生長放到select裡面的column
+    '''
 
     def _get_data_column_select(self, id_, ):
         columns = self.data.columns.to_list()
@@ -243,6 +360,7 @@ class BarAndDes:
     def gen_barcontainer(self, bar_contents):
         bar = self._gen_barchart()
         return dbc.Container([
+            html.Hr(),
             dbc.Row([
                 dbc.Col(html.Div([
                     dbc.InputGroup(
@@ -337,6 +455,7 @@ class LineAndDes:
     def gen_linecontainter(self, line_contents):
         linec = self._gen_linecharts()
         return dbc.Container([
+            html.Hr(),
             dbc.Row([
                 dbc.Col(html.Div([
                     dbc.InputGroup(
@@ -370,17 +489,22 @@ PBar = BarAndDes(data=data_bar, columnx='year', columny='pop', color='country',
 bar_content = '12345544'
 PLine = LineAndDes(data=data_line, columnx='lifeExp', columny='gdpPercap',
                    title="Life expectancy in Canada", text='year', color='country', figid='linefig')
-
+dataclass = DataTables(data=data_bar)
+datainfo = dataclass.gen_tabled_info(title="info")
+datapreview = dataclass.gen_preview_table(title="Preview", left=0)
+datades = dataclass.gen_description_table(title="Description")
 line_content = '5678'
 
 '''
-id的規則，在建立物件的同時，要給定id=figid，裡面的select column的id格式為figid_y(或y)
-
+    id的規則，在建立物件的同時，要給定id=figid，裡面的select column的id格式為figid_y(或y)
+    
 '''
 app.layout = html.Div(
     [dcc.Location(id='link'), topbar.gen_topbar(), bleow_nav,
+     datapreview,
+     datainfo,
+     datades,
      PBar.gen_barcontainer(bar_contents=bar_content),
-     html.Hr(),
      PLine.gen_linecontainter(line_contents=line_content)])
 
 
