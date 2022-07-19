@@ -1,6 +1,7 @@
 # _*_ coding: UTF-8 _*_
 # 注意資料集不要取中文名字
 # from logging import PlaceHolder
+import dataclasses
 import pathlib
 import dash_bootstrap_components as dbc
 from dash import dcc, Input, Output, html, dash, State
@@ -13,6 +14,7 @@ import io  # 自動檢查資料需要之模組
 import plotly.express as px
 import plotly.graph_objs as go
 import plotly.io as pio
+import plotly.figure_factory as ff  # 畫heatmap的時候用到的
 
 pio.templates["nice"] = go.layout.Template(
     layout={
@@ -211,6 +213,62 @@ class DataTables:
             dbc.Row([
                 dbc.Col(dcc.Markdown(), width=left),
                 dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
+            ])
+        ])
+
+
+class HeatMap:
+    DATA: pd.DataFrame = []
+    TITLE: str = "Default"
+    LEFT: int = 4
+
+    def __init__(self,
+                 data: pd.DataFrame = DATA,
+                 ):
+        self.data = data
+
+    def _get_heatmap(self):
+        corr = self.data.corr()
+        fig = ff.create_annotated_heatmap(z=corr.to_numpy(),
+                                          x=corr.columns.to_list(),  # 要求為list
+                                          y=corr.columns.to_list(),
+                                          colorscale=px.colors.diverging.RdBu,
+                                          hoverinfo="none",  # Shows hoverinfo for null values
+                                          showscale=True, ygap=1, xgap=1
+                                          )
+        fig.update_xaxes(side="bottom")
+        fig.update_layout(
+            title_text='Heatmap',
+            title_x=0.5,
+            width=1000,
+            height=1000,
+            xaxis_showgrid=False,
+            yaxis_showgrid=False,
+            xaxis_zeroline=False,
+            yaxis_zeroline=False,
+            yaxis_autorange='reversed',
+            template='plotly_white'
+        )
+        # NaN values are not handled automatically and are displayed in the figure
+        # So we need to get rid of the text manually
+        for i in range(len(fig.layout.annotations)):
+            if fig.layout.annotations[i].text == 'nan':
+                fig.layout.annotations[i].text = ""
+        return fig
+
+    def gen_heatmap(self,
+                    title=TITLE,
+                    left=LEFT,
+                    id_: str = None):
+        title = title
+        left = left
+        id_ = id_
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(dcc.Markdown(), width=left),
+                dbc.Col([html.H4(title, style={'text-align': 'center'}),
+                         dcc.Graph(figure=self._get_heatmap())], width=(12 - left))
             ])
         ])
 
@@ -494,6 +552,7 @@ datainfo = dataclass.gen_tabled_info(title="info")
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
 line_content = '5678'
+corrheatmap=HeatMap(data=data_bar).gen_heatmap(title="Correlation Heatmap")
 
 '''
     id的規則，在建立物件的同時，要給定id=figid，裡面的select column的id格式為figid_y(或y)
@@ -505,7 +564,8 @@ app.layout = html.Div(
      datainfo,
      datades,
      PBar.gen_barcontainer(bar_contents=bar_content),
-     PLine.gen_linecontainter(line_contents=line_content)])
+     PLine.gen_linecontainter(line_contents=line_content),
+     corrheatmap])
 
 
 @app.callback(
