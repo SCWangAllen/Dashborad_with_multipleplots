@@ -576,7 +576,7 @@ class LineAndDes:
     def gen_linecontainter(self,
                            line_contents: any = CONTENT,
                            fig_id: str = None):
-        linec = self._gen_linecharts()
+        lineplot = self._gen_linecharts()
         fig_id = fig_id
         line_contents = line_contents
         return dbc.Container([
@@ -603,7 +603,7 @@ class LineAndDes:
                         dbc.Button('作圖', id=f'{self.containerid}_state')
                     ])
                     , line_contents]), width=4),
-                dbc.Col(dcc.Graph(figure=linec, id=fig_id), width=8)
+                dbc.Col(dcc.Graph(figure=lineplot, id=fig_id), width=8)
             ])
         ])
 
@@ -627,44 +627,123 @@ class LineAndDes:
         return fig
 
 
-# class BoxCharts:
-#     DATA:pd.DataFrame=[]
-#     TITLE:str="Default"
-#     BOXCONTAINERID:str=None
-#
-#
-#     def __init__(self,
-#                  title:str=TITLE,
-#                  data:pd.DataFrame=DATA,
-#                  boxcid=BOXCONTAINERID):
-#         self.data=data
-#         self.title=title
-#         self.boxcid=boxcid
-#
-#     def _get_data_column_select(self, id_, ):
-#         columns = self.data.columns.to_list()
-#         labels = []
-#         for i in columns:
-#             x = {
-#                 "label": i,
-#                 "value": i,
-#             }
-#             labels.append(x)
-#
-#         return dbc.Select(
-#             options=labels,
-#             id=f'{self.boxcid}_{id_}',
-#             placeholder=f'{columns[0]}'
-#         )
-#     @staticmethod
-#     # def _gen_box_chart(data,columnx):
-#     #     fig=
+class BoxCharts:
+    DATA: pd.DataFrame = []
+    TITLE: str = "Default"
+    BOXCONTAINERID: str = None
+    CONTENT: any = ''
+
+    def __init__(self,
+                 title: str = TITLE,
+                 data: pd.DataFrame = DATA,
+                 boxcid=BOXCONTAINERID,
+                 columnx: str = '',
+                 columny: str = ''):
+        self.data = data
+        self.title = title
+        self.boxcid = boxcid
+        self.columnx = columnx
+        self.columny = columny
+
+    # 生產html輸出
+    def _get_data_column_select(self, id_, placeholder):
+        columns = self.data.columns.to_list()
+        labels = []
+        placeholder = placeholder
+        for i in columns:
+            x = {
+                "label": f'{i}({self.data[i].dtypes})',
+                "value": i,
+            }
+            labels.append(x)
+
+        return dbc.Select(
+            options=labels,
+            id=f'{self.boxcid}_{id_}',
+            placeholder=placeholder
+        )
+
+    @staticmethod
+    def _get_select(datas):
+        columns = datas.columns.to_list()
+        labels = []
+        for i in columns:
+            x = {
+                "label": f'{i}({datas[i].dtypes})',
+                "value": i,
+            }
+            labels.append(x)
+        return labels
+
+    # 新增盒鬚圖x的columnx
+    # def _get_data_column_select(self, id_, placeholder):
+    #     labels = self._get_select(self.data)
+    #     placeholder = placeholder
+    #     return dbc.Select(
+    #         options=labels,
+    #         id=f'{self.boxcid}_{id_}',
+    #         placeholder=placeholder
+    #     )
+
+    # 新增dropdown
+    def _gen_data_dropdown(self, id_, placeholder, multi: bool = False, ):
+        options = self._get_select(self.data)
+        multi = multi
+        placeholder = placeholder
+        return dcc.Dropdown(
+            options=options,
+            multi=multi,
+            id=f'{self.boxcid}_{id_}',
+            placeholder=placeholder
+        )
+
+    def _gen_boxchart(self):
+        fig = px.box(data_frame=self.data, x=self.columnx, y=self.columny,title=self.title,template='nice')
+        return fig
+
+    def gen_boxcontainer(self,
+                         box_contents: any = CONTENT,
+                         fig_id: str = None):
+        boxplot = self._gen_boxchart()
+        fig_id = fig_id
+        box_contents = box_contents
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(html.Div([
+                    html.Div([self._gen_data_dropdown(id_='x', multi=True, placeholder="X_axis"), ]),
+                    html.Div([self._get_data_column_select(id_='y', placeholder='Y-axis'), ]),
+                    html.Div(
+                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                                      id=f'{self.boxcid}_color', ),
+                         ]
+                    ),
+                    html.Div(
+                        [dcc.Dropdown(options=[{"label": "group", 'value': "group"},
+                                               {'label': "overlay", 'value': 'overlay'}],
+                                      placeholder='boxmode', id=f'{self.boxcid}_boxmode'), ]
+                    ),
+                    dbc.InputGroup([
+                        dbc.Button('作圖', id=f'{self.boxcid}_state')
+                    ])
+                    , box_contents]), width=4),
+                dbc.Col(dcc.Graph(figure=boxplot, id=fig_id), width=8)
+            ])
+        ])
+
+    def gen_updata(self, columnx, columny, color, boxmode):
+        fig = px.box(data_frame=self.data, x=columnx, y=columny,
+                     color=color, boxmode=boxmode,template='nice',
+                     title=self.title)
+        return fig
+
 
 # data variables
+
 data_bar = px.data.gapminder()
 long_df = px.data.medals_long()
-line_content = '5678'
 data_line = px.data.gapminder().query("country in ['Canada','Botswana']")
+data_box = px.data.tips()
 # dash website materials
 topbar = TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
 # dash bar chart class define
@@ -674,7 +753,8 @@ PBarchart = BarAndDes(data=data_bar, title='BarChart', columnx='year', columny='
 # dash line chart class define
 PLine = LineAndDes(data=data_line, columnx='lifeExp', columny='gdpPercap',
                    title="Life expectancy in Canada", text='year', color='country', linecid='line1')
-
+# dash box plot class define columnx和columny是自己要先預設，也可不設
+PBox = BoxCharts(data=data_box, columnx='time', columny='total_bill', boxcid='box1',title="BoxChart")
 dataclass = DataTables(data=data_bar)
 datainfo = dataclass.gen_tabled_info(title="info")
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
@@ -692,6 +772,7 @@ app.layout = html.Div(
      datades,
      PBarchart.gen_barcontainer(fig_id='barfig'),
      PLine.gen_linecontainter(fig_id='linefig'),
+     PBox.gen_boxcontainer(fig_id='boxfig'),
      corrheatmap])
 
 
@@ -731,6 +812,23 @@ def update_line(State, linex, liney, color, text):
     fig = PLine.gen_updata_line(columnx=linex, columny=liney, color=color, text=text)
     print(color, type(color))
     print(text, type(text))
+    return fig
+
+
+@app.callback(
+    Output('boxfig', 'figure'),
+    Input('box1_state', 'n_clicks'),
+    State('box1_x', 'value'),
+    State('box1_y', 'value'),
+    State('box1_color', 'value'),
+    State('box1_boxmode', 'value'),
+    prevent_initial_call=True
+)
+def update_box(State, boxx, boxy, color, boxmode: str = "overlay"):
+    boxmode = boxmode
+    fig = PBox.gen_updata(columnx=boxx, columny=boxy, color=color, boxmode=boxmode)
+    print(color, type(color))
+    print(boxmode, type(boxmode))
     return fig
 
 
