@@ -29,19 +29,20 @@ pio.templates["nice"] = go.layout.Template(
                  'size': 16,
                  'color': '#333'},
         # Colorways
-        'colorway': ['#ec7424', '#a4abab'],
+        # 'colorway': ['#ec7424', '#a4abab'],
         # Keep adding others as needed below
         'hovermode': 'x unified'
     },
     # DATA
     data={
         # Each graph object must be in a tuple or list for each trace
-        'bar': [go.Bar(texttemplate='%{value}',
-                       textposition='outside',
-                       textfont={'family': 'Helvetica Neue, Helvetica, Sans-serif',
-                                 'size': 20,
-                                 'color': '#FFFFFF'
-                                 })]
+        'bar': [go.Bar(
+            # texttemplate='%{value}',
+            textposition='outside',
+            textfont={'family': 'Helvetica Neue, Helvetica, Sans-serif',
+                      'size': 20,
+                      'color': '#FFFFFF'
+                      })]
     }
 )
 app = dash.Dash(
@@ -50,7 +51,7 @@ app = dash.Dash(
     suppress_callback_exceptions=True
 )
 server = app.server
-app.title = 'credit_Analysis'
+app.title = 'Data Analysis'
 
 SIDEBAR_STYLE = {
     "position": "fixed",
@@ -101,6 +102,10 @@ class DataTables:
                    .drop('Count', axis=1)
                    .rename(columns={'Non-Null': 'Non-Null Count'})
                    .rename(columns={'#': 'number'}))
+        unique_value = []
+        for i in self.data.columns:
+            unique_value.append(len(self.data[i].unique()))
+        details['unique'] = unique_value
         return details
 
     # 將任何DF的column調成datatable的column的輸出結構
@@ -334,7 +339,7 @@ class TopNavbar:
     def _gen_navlink_col(self, lens):
         navlinks = [dbc.Col(dbc.NavLink(self.home, href='/', active='exact'), width=6)]
         for i in range(len(self.otherpage)):
-            navlinks.append(dbc.Col(dbc.NavLink(children=self.otherpage[i], href=f'/{self.href[i]}',
+            navlinks.append(dbc.Col(dbc.NavLink(children=self.otherpage[i], href=f'#{self.href[i]}',
                                                 external_link=True), width=6 / lens))
         return navlinks
 
@@ -357,8 +362,11 @@ class BarAndDes:
     HOVER: list = []
     LABEL: dict = {}
     BARDMODE: str = ''
-    FIGID: str = ''
+    BARCONTAINERID: str = ''
     DETAIL: list = ['color', 'text']
+    CONTENT: object = '橫軸為類別，Y軸為數值,' "\n" \
+                      'color用的是另一個類別，他會自動分顏色，要使用group起來的話，要更改barmode'
+
     '''
     DATA 要是一個DataFrame
     '''
@@ -368,11 +376,12 @@ class BarAndDes:
                  title: str = TITLE,
                  columnx: str = '',
                  columny: str = '',
-                 color=None,
-                 label=None,
-                 hover=None,
-                 barmode=None,
-                 figid=None):
+                 color: str = None,
+                 label: str = None,
+                 hover: str = None,
+                 barmode: str = None,
+                 barcid=None,
+                 content=CONTENT):
         if label is None:
             label = self.LABEL
         if color is None:
@@ -387,35 +396,48 @@ class BarAndDes:
         self.label = label
         self.hover = hover
         self.barmode = barmode
-        self.figid = figid
+        self.containerid = barcid
+        self.content = content
 
     def _gen_barchart(self):
         fig = px.bar(self.data, x=self.columnx, y=self.columny, title=self.title, color=self.color,
                      labels=self.label,
-                     hover_data=self.HOVER, template='nice', barmode=self.barmode)
+                     hover_data=self.HOVER, barmode=self.barmode, template='nice')
         return fig
 
     '''
-    下面是拿來生長放到select裡面的column
+    下面是拿來生長放到select裡面的column,id_是每個select欄位的，方便我們做callback
+    型式就是containerid_(id_)
     '''
 
-    def _get_data_column_select(self, id_, ):
-        columns = self.data.columns.to_list()
+    # 專門給select生產option  不產生html輸出
+    @staticmethod
+    def _get_select(datas):
+        columns = datas.columns.to_list()
         labels = []
         for i in columns:
             x = {
-                "label": i,
+                "label": f'{i}({datas[i].dtypes})',
                 "value": i,
             }
             labels.append(x)
+        return labels
 
+    # 生產html輸出
+    def _get_data_column_select(self, id_: str = None, ):
+        id_ = id_
+        # columns = self.data.columns.to_list()
+        labels = self._get_select(self.data)
         return dbc.Select(
             options=labels,
-            id=f'{self.figid}_{id_}',
-            placeholder=f'{columns[0]}'
+            id=f'{self.containerid}_{id_}',
+            placeholder=f'Choose Col'
         )
 
-    def gen_barcontainer(self, bar_contents):
+    def gen_barcontainer(self,
+                         bar_contents: str = CONTENT,
+                         fig_id: str = None):
+        bar_contents = bar_contents
         bar = self._gen_barchart()
         return dbc.Container([
             html.Hr(),
@@ -428,20 +450,46 @@ class BarAndDes:
                          self._get_data_column_select(id_='y', ),
                          ]
                     ),
-                    ## TODO 可以寫成內建函式
-                    dbc.InputGroup(
-                        [dbc.InputGroupText("Color"),
-                         dbc.Input(placeholder=''),
-                         dbc.InputGroupText("Text"),
-                         dbc.Input(placeholder='', ),
-                         dbc.Button('作圖', id=f'{self.figid}_state', n_clicks=0)
+                    html.Div(
+                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                                      id=f'{self.containerid}_color', ),
                          ]
-                    )
-
-                    , bar_contents]), width=4),
-                dbc.Col(dcc.Graph(figure=bar, id=self.figid), width=8)
+                    ),
+                    # dbc.InputGroup(
+                    #     [dbc.Input(placeholder='Text', id=f'{self.containerid}_text'), ]
+                    # ),
+                    html.Div(
+                        [dcc.Dropdown(options=[{'label': "stack", "value": "stack"},
+                                               {"label": "group", 'value': "group"},
+                                               {'label': "overlay", 'value': 'overlay'},
+                                               {'label': 'relative', 'value': 'relative'}],
+                                      placeholder='barmode',
+                                      id=f'{self.containerid}_barmode'),
+                         ]
+                    ),
+                    dbc.Button('作圖', id=f'{self.containerid}_state', n_clicks=0)
+                    , html.Div(bar_contents, id=f'{self.containerid}_content')]), width=4),
+                dbc.Col(dcc.Graph(figure=bar, id=fig_id), width=8)
             ])
-        ])
+        ], id=self.containerid)
+
+    def gen_updata_bar(self,
+                       columnx: str = None,
+                       columny: str = None,
+                       title: str = None,
+                       color: str = None,
+                       barmode: str = None):
+        data = self.data
+        columnx = columnx
+        columny = columny
+        title = self.title
+        color = color
+        barmode = barmode
+        fig = px.bar(data, x=columnx, y=columny, title=title, color=color,
+                     labels=self.label,
+                     hover_data=self.HOVER, barmode=barmode, template='nice')
+
+        return fig
 
 
 class LineAndDes:
@@ -450,8 +498,9 @@ class LineAndDes:
     COLOR: list or str = []  # 是否分組畫圖
     LABEL: dict = {}  # X軸和Y軸的名稱
     TEXT: str = ''  # 折線圖上的點顯示的資料
-    FIGID: str = ''  # 裡面圖片的ID
+    CONTAINERID: str = ''  # 裡面container的ID
     DETAIL: list = ['color', 'text']
+    CONTENT: any = 'text為每個點上顯示的變數維和，color能根據不同變數做分組'
 
     def __init__(self,
                  data: pd.DataFrame = None,
@@ -462,7 +511,7 @@ class LineAndDes:
                  hover: list = None,
                  color=None,
                  text=None,
-                 figid=None):
+                 linecid=None, ):
         if label is None:
             label = self.LABEL
         self.data = data
@@ -473,7 +522,7 @@ class LineAndDes:
         self.hover = hover
         self.color = color
         self.text = text
-        self.figid = figid
+        self.containerid = linecid
 
     '''
     數值要求，y軸要是numeric data
@@ -485,20 +534,34 @@ class LineAndDes:
                       hover_data=self.hover, color=self.color, text=self.text, template="nice")
         return fig
 
+    # 專門給select生產option  不產生html輸出
+    @staticmethod
+    def _get_select(datas):
+        columns = datas.columns.to_list()
+        labels = []
+        for i in columns:
+            x = {
+                "label": f'{i}({datas[i].dtypes})',
+                "value": i,
+            }
+            labels.append(x)
+        return labels
+
+    # 生產html輸出
     def _get_data_column_select(self, id_, ):
         columns = self.data.columns.to_list()
         labels = []
         for i in columns:
             x = {
-                "label": i,
+                "label": f'{i}({self.data[i].dtypes})',
                 "value": i,
             }
             labels.append(x)
 
         return dbc.Select(
             options=labels,
-            id=f'{self.figid}_{id_}',
-            placeholder=f'{columns[0]}'
+            id=f'{self.containerid}_{id_}',
+            placeholder='Choose Col'
         )
 
     def _get_plot_detail_column(self, id_):
@@ -506,12 +569,16 @@ class LineAndDes:
         labels = [{"label": i, "value": i} for i in columns]
         return dbc.Select(
             options=labels,
-            id=f'{self.figid}_{id_}',
+            id=f'{self.containerid}_{id_}',
             placeholder=f'{columns[0]}'
         )
 
-    def gen_linecontainter(self, line_contents):
+    def gen_linecontainter(self,
+                           line_contents: any = CONTENT,
+                           fig_id: str = None):
         linec = self._gen_linecharts()
+        fig_id = fig_id
+        line_contents = line_contents
         return dbc.Container([
             html.Hr(),
             dbc.Row([
@@ -523,39 +590,99 @@ class LineAndDes:
                          self._get_data_column_select(id_='y', ),
                          ]
                     ),
-                    ## TODO 可以寫成內建函式
-                    dbc.InputGroup(
-                        [dbc.InputGroupText("Color"),
-                         dbc.Input(placeholder='', id=f'{self.figid}_color'),
-                         dbc.InputGroupText("Text"),
-                         dbc.Input(placeholder='', id=f'{self.figid}_text'),
-                         dbc.Button('作圖', id=f'{self.figid}_state')
+                    html.Div(
+                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                                      id=f'{self.containerid}_color', ),
                          ]
-                    )
+                    ),
+                    html.Div(
+                        [dcc.Dropdown(self._get_select(self.data),
+                                      placeholder='Text', id=f'{self.containerid}_text'), ]
+                    ),
+                    dbc.InputGroup([
+                        dbc.Button('作圖', id=f'{self.containerid}_state')
+                    ])
                     , line_contents]), width=4),
-                dbc.Col(dcc.Graph(figure=linec, id=self.figid), width=8)
+                dbc.Col(dcc.Graph(figure=linec, id=fig_id), width=8)
             ])
         ])
 
+    def gen_updata_line(self,
+                        columnx: str = None,
+                        columny: str = None,
+                        linetitle: str = None,
+                        color: str = None,
+                        text: str = None
+                        ):
+        if linetitle is None:
+            linetitle = self.title
+        else:
+            linetitle = linetitle
+        data = self.data
+        columnx = columnx
+        columny = columny
+        color = color
+        text = text
+        fig = px.line(data_frame=data, x=columnx, y=columny, color=color, template='nice', title=linetitle, text=text)
+        return fig
 
+
+# class BoxCharts:
+#     DATA:pd.DataFrame=[]
+#     TITLE:str="Default"
+#     BOXCONTAINERID:str=None
+#
+#
+#     def __init__(self,
+#                  title:str=TITLE,
+#                  data:pd.DataFrame=DATA,
+#                  boxcid=BOXCONTAINERID):
+#         self.data=data
+#         self.title=title
+#         self.boxcid=boxcid
+#
+#     def _get_data_column_select(self, id_, ):
+#         columns = self.data.columns.to_list()
+#         labels = []
+#         for i in columns:
+#             x = {
+#                 "label": i,
+#                 "value": i,
+#             }
+#             labels.append(x)
+#
+#         return dbc.Select(
+#             options=labels,
+#             id=f'{self.boxcid}_{id_}',
+#             placeholder=f'{columns[0]}'
+#         )
+#     @staticmethod
+#     # def _gen_box_chart(data,columnx):
+#     #     fig=
+
+# data variables
 data_bar = px.data.gapminder()
 long_df = px.data.medals_long()
+line_content = '5678'
 data_line = px.data.gapminder().query("country in ['Canada','Botswana']")
-topbar = TopNavbar(otherpage=['1', '2', '3'])
-PBar = BarAndDes(data=data_bar, columnx='year', columny='pop', color='country',
-                 title='BarChart', barmode='group', figid='barfig')
-bar_content = '12345544'
+# dash website materials
+topbar = TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
+# dash bar chart class define
+PBarchart = BarAndDes(data=data_bar, title='BarChart', columnx='year', columny='pop', color='continent',
+                      barmode='group',
+                      barcid='bar1')
+# dash line chart class define
 PLine = LineAndDes(data=data_line, columnx='lifeExp', columny='gdpPercap',
-                   title="Life expectancy in Canada", text='year', color='country', figid='linefig')
+                   title="Life expectancy in Canada", text='year', color='country', linecid='line1')
+
 dataclass = DataTables(data=data_bar)
 datainfo = dataclass.gen_tabled_info(title="info")
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
-line_content = '5678'
-corrheatmap=HeatMap(data=data_bar).gen_heatmap(title="Correlation Heatmap")
+corrheatmap = HeatMap(data=data_bar).gen_heatmap(title="Correlation Heatmap")
 
 '''
-    id的規則，在建立物件的同時，要給定id=figid，裡面的select column的id格式為figid_y(或y)
+    id的規則，在建立物件的同時，要給定id=containerid，裡面的select column的id格式為figid_y(或y)
     
 '''
 app.layout = html.Div(
@@ -563,19 +690,47 @@ app.layout = html.Div(
      datapreview,
      datainfo,
      datades,
-     PBar.gen_barcontainer(bar_contents=bar_content),
-     PLine.gen_linecontainter(line_contents=line_content),
+     PBarchart.gen_barcontainer(fig_id='barfig'),
+     PLine.gen_linecontainter(fig_id='linefig'),
      corrheatmap])
 
 
+# barchart callback
 @app.callback(
     Output('barfig', 'figure'),
-    Input('barfig_state', 'n_clicks'),
-    State('barfig_x', 'value'),
-    State('barfig_y', 'value'),
+    # Output('bar1_content', "children"),
+    Input('bar1_state', 'n_clicks'),
+    State('bar1_x', 'value'),
+    State('bar1_y', 'value'),
+    State('bar1_color', 'value'),
+    # State('bar1_text', 'value'),
+    State('bar1_barmode', 'value'),
+    prevent_initial_call=True
 )
-def update_bar(State, barx, bary):
-    fig = px.bar(data_bar, x=barx, y=bary)
+def update_bar(State, barx, bary, color,
+               barmode: str = 'overlay'):
+    barmode = barmode
+    fig = PBarchart.gen_updata_bar(columnx=barx, columny=bary, color=color)
+    fig.update_layout(barmode=barmode)
+    # fig.update_layout(color=color)
+    print(color, type(color))
+    return fig
+
+
+# linechart callback
+@app.callback(
+    Output('linefig', 'figure'),
+    Input('line1_state', 'n_clicks'),
+    State('line1_x', 'value'),
+    State('line1_y', 'value'),
+    State('line1_color', 'value'),
+    State('line1_text', 'value'),
+    prevent_initial_call=True
+)
+def update_line(State, linex, liney, color, text):
+    fig = PLine.gen_updata_line(columnx=linex, columny=liney, color=color, text=text)
+    print(color, type(color))
+    print(text, type(text))
     return fig
 
 
