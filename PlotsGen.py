@@ -8,28 +8,97 @@ import plotly.figure_factory as ff
 import pandas as pd
 
 
-class HeatMap:
+class Settings:
+    LEFT: int = 4
+    COLOR: list or str = []
+
+    def __init__(self, data=None):
+        self.data = data
+
+    @staticmethod
+    def get_select(data):
+        columns = data.columns.to_list()
+        labels = []
+        for i in columns:
+            x = {
+                "label": f'{i}({data[i].dtypes})',
+                "value": i,
+            }
+            labels.append(x)
+        return labels
+
+    # 下面是將data的description轉成我們能夠輕易看的pd.Dataframe
+    @staticmethod
+    def get_data_description(data):
+        buffer = io.StringIO()
+        data.info(buf=buffer)
+        lines = buffer.getvalue().splitlines()
+        details = (pd.DataFrame([x.split() for x in lines[5:-2]], columns=lines[3].split())
+                   .drop('Count', axis=1)
+                   .rename(columns={'Non-Null': 'Non-Null Count'})
+                   .rename(columns={'#': 'number'}))
+        unique_value = []
+        for i in data.columns:
+            unique_value.append(len(data[i].unique()))
+        details['unique'] = unique_value
+        return details
+
+    # 替圖表新增dropdown選項 並加上去除物件屬性選項，因為有些圖就只能用數值選項去看。
+    def gen_data_dropdown(self, data, top_id, id_, placeholder: str = None,
+                          multi: bool = False, numeric: bool = False):
+        datades = self.get_data_description(data)
+        options = []
+        if numeric:
+            for i in range(len(data.columns) - 1):
+                if datades['Dtype'][i] != 'object':
+                    options.append({
+                        "label": f'{data.columns[i]}({data[data.columns[i]].dtypes})',
+                        "value": data.columns[i],
+                    })
+                else:
+                    pass
+        else:
+            options = self.get_select(data)
+        multi = multi
+        placeholder = placeholder
+        return dcc.Dropdown(
+            options=options,
+            multi=multi,
+            id=f'{top_id}_{id_}',
+            placeholder=placeholder
+        )
+
+
+class HeatMap(Settings):
     DATA: pd.DataFrame = []
     TITLE: str = "Default"
     LEFT: int = 4
 
     def __init__(self,
                  data: pd.DataFrame = DATA,
-                 ):
+                 heatid: str = None):
+        self.heatid = heatid
         self.data = data
+        self.corr = data.corr()
+        self.columns = data.columns
 
-    def _get_heatmap(self):
-        corr = self.data.corr()
-        fig = ff.create_annotated_heatmap(z=corr.to_numpy(),
-                                          x=corr.columns.to_list(),  # 要求為list
-                                          y=corr.columns.to_list(),
+    #     z = self.corr.to_numpy
+    #     y = self.columns.to_list()
+    #     x = self.columns.to_list()
+    @staticmethod
+    def _get_heatmap(x,
+                     y,
+                     z):
+        fig = ff.create_annotated_heatmap(z=z,
+                                          x=x,  # 要求為list
+                                          y=y,
                                           colorscale=px.colors.diverging.RdBu,
                                           hoverinfo="none",  # Shows hoverinfo for null values
                                           showscale=True, ygap=1, xgap=1
                                           )
         fig.update_xaxes(side="bottom")
         fig.update_layout(
-            title_text='Heatmap',
+            # title_text='Heatmap',
             title_x=0.5,
             width=1000,
             height=1000,
@@ -54,14 +123,28 @@ class HeatMap:
         title = title
         left = left
         id_ = id_
+        FIGURE = self._get_heatmap(x=self.corr.columns.to_list(),
+                                   y=self.corr.columns.to_list(),
+                                   z=self.corr.to_numpy())
         return dbc.Container([
             html.Hr(),
             dbc.Row([
-                dbc.Col(dcc.Markdown(), width=left),
+                dbc.Col([
+                    html.Div(super().gen_data_dropdown(data=self.data, top_id=self.heatid, id_='vars',
+                                                       multi=True, placeholder='varaibles', numeric=True)),
+                    html.Div(id=f'{self.heatid}_var_list'),
+                    dbc.Button('作圖', id=f'{self.heatid}_state')], width=left),
                 dbc.Col([html.H4(title, style={'text-align': 'center'}),
-                         dcc.Graph(figure=self._get_heatmap())], width=(12 - left))
+                         dcc.Graph(figure=FIGURE, id=id_)], width=(12 - left))
             ])
-        ])
+        ], id=self.heatid)
+
+    def gen_update(self, var: list, rounds: int = 5):
+        corr = self.data[var].corr().round(rounds)
+        fig = self._get_heatmap(x=corr.columns.to_list(),
+                                y=corr.columns.to_list(),
+                                z=corr.to_numpy())
+        return fig
 
 
 class SideBar:
@@ -141,10 +224,9 @@ class TopNavbar:
         return gentopbar
 
 
-class BarAndDes:
+class BarAndDes(Settings):
     DATA: object = []
     TITLE: str = 'Default'
-    COLOR: list or str = []
     HOVER: list = []
     LABEL: dict = {}
     BARDMODE: str = ''
@@ -157,17 +239,9 @@ class BarAndDes:
     DATA 要是一個DataFrame
     '''
 
-    def __init__(self,
-                 data: pd.DataFrame,
-                 title: str = TITLE,
-                 columnx: str = '',
-                 columny: str = '',
-                 color: str = None,
-                 label: str = None,
-                 hover: str = None,
-                 barmode: str = None,
-                 barcid=None,
-                 content=CONTENT):
+    def __init__(self, data: pd.DataFrame, title: str = TITLE, columnx: str = '', columny: str = '', color: str = None,
+                 label: str = None, hover: str = None, barmode: str = None, barcid=None, content=CONTENT):
+        super().__init__(data)
         if label is None:
             label = self.LABEL
         if color is None:
@@ -186,7 +260,8 @@ class BarAndDes:
         self.content = content
 
     def _gen_barchart(self):
-        fig = px.bar(self.data, x=self.columnx, y=self.columny, title=self.title, color=self.color,
+
+        fig = px.bar(self.data, x=self.columnx, y=self.columny, title=self.title,
                      labels=self.label,
                      hover_data=self.HOVER, barmode=self.barmode, template='nice')
         return fig
@@ -197,23 +272,12 @@ class BarAndDes:
     '''
 
     # 專門給select生產option  不產生html輸出
-    @staticmethod
-    def _get_select(datas):
-        columns = datas.columns.to_list()
-        labels = []
-        for i in columns:
-            x = {
-                "label": f'{i}({datas[i].dtypes})',
-                "value": i,
-            }
-            labels.append(x)
-        return labels
 
     # 生產html輸出
     def _get_data_column_select(self, id_: str = None, ):
         id_ = id_
         # columns = self.data.columns.to_list()
-        labels = self._get_select(self.data)
+        labels = super().get_select(self.data)
         return dbc.Select(
             options=labels,
             id=f'{self.containerid}_{id_}',
@@ -237,7 +301,7 @@ class BarAndDes:
                          ]
                     ),
                     html.Div(
-                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                        [dcc.Dropdown(super().get_select(self.data), placeholder='Color',
                                       id=f'{self.containerid}_color', ),
                          ]
                     ),
@@ -278,7 +342,7 @@ class BarAndDes:
         return fig
 
 
-class LineAndDes:
+class LineAndDes(Settings):
     DATA: object = []  # 資料
     TITLE: str = 'Default'  # 圖片標題
     COLOR: list or str = []  # 是否分組畫圖
@@ -288,16 +352,9 @@ class LineAndDes:
     DETAIL: list = ['color', 'text']
     CONTENT: any = 'text為每個點上顯示的變數維和，color能根據不同變數做分組'
 
-    def __init__(self,
-                 data: pd.DataFrame = None,
-                 title: str = TITLE,
-                 columnx: str = '',
-                 columny: str = '',
-                 label: dict = None,
-                 hover: list = None,
-                 color=None,
-                 text=None,
-                 linecid=None, ):
+    def __init__(self, data: pd.DataFrame = None, title: str = TITLE, columnx: str = '', columny: str = '',
+                 label: dict = None, hover: list = None, color=None, text=None, linecid=None):
+        super().__init__(data)
         if label is None:
             label = self.LABEL
         self.data = data
@@ -320,32 +377,10 @@ class LineAndDes:
                       hover_data=self.hover, color=self.color, text=self.text, template="nice")
         return fig
 
-    # 專門給select生產option  不產生html輸出
-    @staticmethod
-    def _get_select(datas):
-        columns = datas.columns.to_list()
-        labels = []
-        for i in columns:
-            x = {
-                "label": f'{i}({datas[i].dtypes})',
-                "value": i,
-            }
-            labels.append(x)
-        return labels
-
-    # 生產html輸出
+    # 生產Select的html輸出
     def _get_data_column_select(self, id_, ):
-        columns = self.data.columns.to_list()
-        labels = []
-        for i in columns:
-            x = {
-                "label": f'{i}({self.data[i].dtypes})',
-                "value": i,
-            }
-            labels.append(x)
-
         return dbc.Select(
-            options=labels,
+            options=super().get_select(self.data),
             id=f'{self.containerid}_{id_}',
             placeholder='Choose Col'
         )
@@ -377,12 +412,12 @@ class LineAndDes:
                          ]
                     ),
                     html.Div(
-                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                        [dcc.Dropdown(super().get_select(self.data), placeholder='Color',
                                       id=f'{self.containerid}_color', ),
                          ]
                     ),
                     html.Div(
-                        [dcc.Dropdown(self._get_select(self.data),
+                        [dcc.Dropdown(super().get_select(self.data),
                                       placeholder='Text', id=f'{self.containerid}_text'), ]
                     ),
                     dbc.InputGroup([
@@ -413,53 +448,28 @@ class LineAndDes:
         return fig
 
 
-class BoxCharts:
+class BoxCharts(Settings):
     DATA: pd.DataFrame = []
     TITLE: str = "Default"
     BOXCONTAINERID: str = None
     CONTENT: any = ''
 
-    def __init__(self,
-                 title: str = TITLE,
-                 data: pd.DataFrame = DATA,
-                 boxcid=BOXCONTAINERID,
-                 columnx: str = '',
+    def __init__(self, title: str = TITLE, data: pd.DataFrame = DATA, boxcid=BOXCONTAINERID, columnx: str = '',
                  columny: str = ''):
+        super().__init__(data)
         self.data = data
         self.title = title
         self.boxcid = boxcid
         self.columnx = columnx
         self.columny = columny
 
-    # 生產html輸出
+    # 生產select的html輸出
     def _get_data_column_select(self, id_, placeholder):
-        columns = self.data.columns.to_list()
-        labels = []
-        placeholder = placeholder
-        for i in columns:
-            x = {
-                "label": f'{i}({self.data[i].dtypes})',
-                "value": i,
-            }
-            labels.append(x)
-
         return dbc.Select(
-            options=labels,
+            options=super().get_select(self.data),
             id=f'{self.boxcid}_{id_}',
             placeholder=placeholder
         )
-
-    @staticmethod
-    def _get_select(datas):
-        columns = datas.columns.to_list()
-        labels = []
-        for i in columns:
-            x = {
-                "label": f'{i}({datas[i].dtypes})',
-                "value": i,
-            }
-            labels.append(x)
-        return labels
 
     # 新增盒鬚圖x的columnx
     # def _get_data_column_select(self, id_, placeholder):
@@ -470,18 +480,6 @@ class BoxCharts:
     #         id=f'{self.boxcid}_{id_}',
     #         placeholder=placeholder
     #     )
-
-    # 新增dropdown
-    def _gen_data_dropdown(self, id_, placeholder, multi: bool = False, ):
-        options = self._get_select(self.data)
-        multi = multi
-        placeholder = placeholder
-        return dcc.Dropdown(
-            options=options,
-            multi=multi,
-            id=f'{self.boxcid}_{id_}',
-            placeholder=placeholder
-        )
 
     def _gen_boxchart(self):
         fig = px.box(data_frame=self.data, x=self.columnx, y=self.columny, title=self.title, template='nice')
@@ -497,10 +495,13 @@ class BoxCharts:
             html.Hr(),
             dbc.Row([
                 dbc.Col(html.Div([
-                    html.Div([self._gen_data_dropdown(id_='x', multi=True, placeholder="X_axis"), ]),
-                    html.Div([self._get_data_column_select(id_='y', placeholder='Y-axis'), ]),
                     html.Div(
-                        [dcc.Dropdown(self._get_select(self.data), placeholder='Color',
+                        [super().gen_data_dropdown(data=self.data, top_id=self.boxcid,
+                                                   id_='x', multi=True, placeholder="X_axis"), ]),
+                    html.Div([super().gen_data_dropdown(data=self.data, top_id=self.boxcid,
+                                                        id_='y', multi=False, placeholder="Y_axis")]),
+                    html.Div(
+                        [dcc.Dropdown(super().get_select(self.data), placeholder='Color',
                                       id=f'{self.boxcid}_color', ),
                          ]
                     ),
@@ -524,12 +525,51 @@ class BoxCharts:
         return fig
 
 
-class ScatterPlots:
-    DATA: object = []
+class ScatterPlots(Settings):
     TITLE: str = 'Default'
+    CONTENT: any = '關於圖片的說明'
+    SCID: str = None
 
-    CONTENT: object = '橫軸為類別，Y軸為數值,' "\n" \
-                      'color用的是另一個類別，他會自動分顏色，要使用group起來的話，要更改barmode'
+    def __init__(self, data=None, scaid: str = None):
+        super().__init__(data)
+        self.data = data
+        self.scaid = scaid
+
+    def _gen_scatter(self, columnx, columny):
+        fig = px.scatter(data_frame=self.data, x=columnx, y=columny)
+        return fig
+
+    # 若想要一開始在html上面就有圖表，可以填充數值
+    def gen_scacon(self, x, y, fig_id: str = None, sca_contents: any = CONTENT):
+        fig = self._gen_scatter(columnx=x, columny=y)
+        fig_id = fig_id
+        sca_contents = sca_contents
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(html.Div([
+                    html.Div(
+                        [super().gen_data_dropdown(data=self.data, top_id=self.scaid,
+                                                   id_='x', multi=True, placeholder="X_axis"), ]),
+                    html.Div([super().gen_data_dropdown(data=self.data, top_id=self.scaid,
+                                                        id_='y', multi=False, placeholder="Y_axis")]),
+                    html.Div(
+                        [dcc.Dropdown(super().get_select(self.data), placeholder='Color',
+                                      id=f'{self.scaid}_color', ),
+                         ]
+                    ),
+                    # html.Div(
+                    #     [dcc.Dropdown(options=[{"label": "group", 'value': "group"},
+                    #                            {'label': "overlay", 'value': 'overlay'}],
+                    #                   placeholder='boxmode', id=f'{self.scaid}_boxmode'), ]
+                    # ),
+                    dbc.InputGroup([
+                        dbc.Button('作圖', id=f'{self.scaid}_state')
+                    ])
+                    , sca_contents]), width=4),
+                dbc.Col(dcc.Graph(figure=fig, id=fig_id), width=8)
+            ])
+        ])
 
 
 if __name__ == '__main__':

@@ -1,6 +1,3 @@
-# _*_ coding: UTF-8 _*_
-# 注意資料集不要取中文名字
-# from logging import PlaceHolder
 import dataclasses
 import pathlib
 import dash_bootstrap_components as dbc
@@ -17,6 +14,13 @@ import plotly.io as pio
 import plotly.figure_factory as ff  # 畫heatmap的時候用到的
 import PlotsGen as pg
 
+SIDEBAR_STYLE = {
+    "position": "fixed",
+    # "bottom": 0,
+    "right": 0,
+    'left': 0,
+    "padding": "2rem 1rem",
+}
 pio.templates["nice"] = go.layout.Template(
     layout={
         # Fonts
@@ -46,39 +50,14 @@ pio.templates["nice"] = go.layout.Template(
                       })]
     }
 )
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.MINTY],
     suppress_callback_exceptions=True
 )
 server = app.server
-app.title = 'Data Analysis'
-
-SIDEBAR_STYLE = {
-    "position": "fixed",
-    # "bottom": 0,
-    "right": 0,
-    'left': 0,
-    "padding": "2rem 1rem",
-}
-
-sidebar = dbc.Navbar([
-    dbc.Container(
-        [
-            dbc.Row([
-
-                dbc.Col(dbc.NavLink('Home', href='/', active='exact'), width=10),
-                dbc.Col(dbc.NavLink('Preview', href='/preview', active='exact'), width=1),
-                dbc.Col(dbc.NavLink('DataClean', href='/dataclean', active='exact'), width=1)]),
-        ], id='mainnavbar'),
-])
-bleow_nav = dbc.Container([
-    dbc.Row([
-        html.Hr(),
-        html.H2("Data Analysis", className="lead", style={'text-align': 'center', 'font-weight': 'bold'}),
-        html.Hr(),
-    ])
-])
+app.title = 'House Price EDA'
 
 
 class DataTables:
@@ -223,33 +202,36 @@ class DataTables:
         ])
 
 
-# data variables
+sidebar = dbc.Navbar([
+    dbc.Container(
+        [
+            dbc.Row([
 
-data_bar = px.data.gapminder()
-long_df = px.data.medals_long()
-data_line = px.data.gapminder().query("country in ['Canada','Botswana']")
-data_box = px.data.tips()
-# dash website materials
+                dbc.Col(dbc.NavLink('Home', href='/', active='exact'), width=10),
+                dbc.Col(dbc.NavLink('Preview', href='/preview', active='exact'), width=1),
+                dbc.Col(dbc.NavLink('DataClean', href='/dataclean', active='exact'), width=1)]),
+        ], id='mainnavbar'),
+])
+bleow_nav = dbc.Container([
+    dbc.Row([
+        html.Hr(),
+        html.H2("Data Analysis", className="lead", style={'text-align': 'center', 'font-weight': 'bold'}),
+        html.Hr(),
+    ])
+])
+df_train = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\train.csv")
+df_test = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\test.csv")
 topbar = pg.TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
-# dash bar chart class define
-PBarchart = pg.BarAndDes(data=data_bar, title='BarChart', columnx='year', columny='pop', color='continent',
-                         barmode='group',
-                         barcid='bar1')
-# dash line chart class define
-PLine = pg.LineAndDes(data=data_line, columnx='lifeExp', columny='gdpPercap',
-                      title="Life expectancy in Canada", text='year', color='country', linecid='line1')
-# dash box plot class define columnx和columny是自己要先預設，也可不設
-PBox = pg.BoxCharts(data=data_box, columnx='time', columny='total_bill', boxcid='box1', title="BoxChart")
-dataclass = DataTables(data=data_bar)
-datainfo = dataclass.gen_tabled_info(title="info")
+
+PBarchart = pg.BarAndDes(data=df_train, barcid='bar1', columnx=df_train.columns[0], columny=df_train.columns[1])
+PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0], columny=df_train.columns[1])
+PBox = pg.BoxCharts(data=df_train, boxcid='box1', columnx=df_train.columns[0], columny=df_train.columns[1])
+corrheatmap = pg.HeatMap(data=df_train, heatid='heat1')
+dataclass = DataTables(data=df_train)
+datainfo = dataclass.gen_tabled_info()
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
-corrheatmap = pg.HeatMap(data=data_bar).gen_heatmap(title="Correlation Heatmap")
 
-'''
-    id的規則，在建立物件的同時，要給定id=containerid，裡面的select column的id格式為figid_y(或y)
-    
-'''
 app.layout = html.Div(
     [dcc.Location(id='link'), topbar.gen_topbar(), bleow_nav,
      datapreview,
@@ -258,7 +240,7 @@ app.layout = html.Div(
      PBarchart.gen_barcontainer(fig_id='barfig'),
      PLine.gen_linecontainter(fig_id='linefig'),
      PBox.gen_boxcontainer(fig_id='boxfig'),
-     corrheatmap])
+     corrheatmap.gen_heatmap(title="Correlation Heatmap", id_='heatfig')])
 
 
 # barchart callback
@@ -317,5 +299,23 @@ def update_box(State, boxx, boxy, color, boxmode: str = "overlay"):
     return fig
 
 
+@app.callback(
+    Output('heatfig', 'figure'),
+    Output('heat1_var_list', 'children'),
+    Input('heat1_state', 'n_clicks'),
+    State('heat1_vars', 'value'),
+    prevent_initial_call=True
+    # State(),
+    # State(),
+)
+def updata_heatmap(State, var):
+    print(var)
+    var_list = []
+    for i in range(len(var)):
+        var_list.append(html.Tr(f'{i+1}. {var[i]}'))
+    table_body = dbc.Table(html.Tbody(var_list))
+    return corrheatmap.gen_update(var=var), table_body
+
+
 if __name__ == '__main__':
-    app.run_server(debug=True, port=3001)
+    app.run_server(debug=True, port=3040)
