@@ -6,6 +6,8 @@ import plotly.graph_objs as go
 import plotly.io as pio
 import plotly.figure_factory as ff
 import pandas as pd
+import seaborn as sns
+from scipy.stats import norm
 
 pio.templates["nice"] = go.layout.Template(
     layout={
@@ -45,8 +47,10 @@ class Settings:
     LEFT: int = 4
     COLOR: list or str = []
 
-    def __init__(self, data=None):
-        self.data = data
+    def __init__(self, datas: bool = None,
+                 left: int = LEFT):
+        self.datas = datas
+        self.left = left
 
     @staticmethod
     def get_select(data):
@@ -121,6 +125,7 @@ class Settings:
                        template: str = 'plotly_white',
                        yaxis_range=None,
                        xaxis_range=None,
+                       y_autorange=None,
                        ):
 
         return fig.update_layout(
@@ -132,7 +137,7 @@ class Settings:
             yaxis_showgrid=False,
             xaxis_zeroline=False,
             yaxis_zeroline=False,
-            # yaxis_autorange='reversed',
+            yaxis_autorange=y_autorange,
             yaxis_range=yaxis_range,
             xaxis_range=xaxis_range,
             template=template
@@ -231,7 +236,7 @@ class BarAndDes(Settings):
 
     def __init__(self, data: pd.DataFrame, title: str = TITLE, columnx: str = '', columny: str = '', color: str = None,
                  label: str = None, hover: str = None, barmode: str = None, barcid=None, content=CONTENT):
-        super().__init__(data)
+        super().__init__()
         if label is None:
             label = self.LABEL
         if color is None:
@@ -261,6 +266,7 @@ class BarAndDes(Settings):
         fig = px.histogram(data_frame=self.data, x=self.columnx, y=self.columny, title=self.title,
                            labels=self.label,
                            hover_data=self.HOVER, barmode=self.barmode, template='nice')
+        return fig
 
     '''
     下面是拿來生長放到select裡面的column,id_是每個select欄位的，方便我們做callback
@@ -272,7 +278,7 @@ class BarAndDes(Settings):
     # 生產html輸出
     def _get_data_column_select(self, id_: str = None, ):
         id_ = id_
-        # columns = self.data.columns.to_list()
+        # columns = self.datas.columns.to_list()
         labels = super().get_select(self.data)
         return dbc.Select(
             options=labels,
@@ -341,17 +347,84 @@ class BarAndDes(Settings):
 class HistAndDes(Settings):
     """hist plot and probability"""
 
-    def __init__(self,
-                 data: pd.DataFrame,
-                 columnx: str = None,
-                 columny: str = None,
-                 ):
+    def __init__(self, data: pd.DataFrame, columnx: str = None, columny: str = None):
+        super().__init__()
         self.data = data
         self.columnx = columnx
         self.columnx = columny
 
+    @staticmethod
     def _gen_hist(self):
         fig = go.Histogram()
+        return fig
+
+
+class Displot(Settings):
+    """
+
+    """
+
+    def __init__(self, data: pd.DataFrame, disid: str = None):
+        super().__init__()
+        self.data = data
+        self.disid = disid
+
+    def gen_dis_plot(self, hist_data, group_labels=None, show_hist: bool = True):
+        if group_labels is None:
+            group_labels = ['displot']
+        # print(self.data[hist_data].to_list())
+        # fig = ff.create_distplot(hist_data=self.data[hist_data], group_labels=group_labels,
+        #                          show_hist=show_hist)
+        fig = px.histogram(self.data[hist_data])
+        return fig
+
+    def gen_dis_con(self, hist_data, group_labels,
+                    left: int = None,
+                    dis_content: any = None,
+                    fig_id: str = None):
+        """
+        產生dis_con的dbc.container物件，並把id都設定為固定格式，方便做callback
+        """
+        if left is None:
+            left = self.left
+        fig = self.gen_dis_plot(hist_data=hist_data, group_labels=group_labels)
+        return dbc.Container([
+            html.Hr(),
+            dbc.Row([
+                dbc.Col(
+                    [
+                        html.Div(
+                            [super().gen_data_dropdown(data=self.data, top_id=self.disid,
+                                                       id_="hist_data", multi=True, placeholder='Hist_data'), ]),
+                        html.Div(
+                            [super().gen_data_dropdown(data=self.data, top_id=self.disid,
+                                                       id_="group_label", multi=True, placeholder='Hist_data'), ]),
+                        dbc.InputGroup(
+                            [
+                                dbc.InputGroupText("X-range_min", ),
+                                dbc.Input(id=f'{self.disid}_x_range_min', ),
+                                dbc.InputGroupText("X-range_max", ),
+                                dbc.Input(id=f'{self.disid}_x_range_max', ),
+                            ]
+                        ),
+                        dbc.InputGroup(
+                            [dbc.InputGroupText("width", ),
+                             dbc.Input(id=f'{self.disid}_width', ),
+                             dbc.InputGroupText("height", ),
+                             dbc.Input(id=f'{self.disid}_height', ),
+                             ]
+                        ),
+                        html.Div(id=f'{self.disid}_xy_range_word'),
+                        dbc.InputGroup([
+                            dbc.Button('作圖', id=f'{self.disid}_state')
+                        ], )
+                        , dis_content], width=left),
+                dbc.Col(
+                    [
+                        dcc.Graph(figure=fig, id=fig_id)
+                    ], width=12 - left)
+            ])
+        ])
 
 
 class LineAndDes(Settings):
@@ -362,7 +435,7 @@ class LineAndDes(Settings):
     TEXT: str = ''  # 折線圖上的點顯示的資料
     CONTAINERID: str = ''  # 裡面container的ID
     DETAIL: list = ['color', 'text']
-    CONTENT: any = 'text為每個點上顯示的變數維和，color能根據不同變數做分組'
+    CONTENT: any = 'text為每個點上顯示的變數為何，color能根據不同變數做分組'
 
     def __init__(self, data: pd.DataFrame = None, title: str = TITLE, columnx: str = '', columny: str = '',
                  label: dict = None, hover: list = None, color=None, text=None, linecid=None):
@@ -380,8 +453,8 @@ class LineAndDes(Settings):
         self.containerid = linecid
 
     '''
-    數值要求，y軸要是numeric data
-            x軸可以是category也可以是numeric data
+    數值要求，y軸要是numeric datas
+            x軸可以是category也可以是numeric datas
     '''
 
     def _gen_linecharts(self):
@@ -494,9 +567,9 @@ class BoxCharts(Settings):
     BOXCONTAINERID: str = None
     CONTENT: any = ''
 
-    def __init__(self, title: str = TITLE, data: pd.DataFrame = DATA, boxcid=BOXCONTAINERID, columnx: str = '',
-                 columny: str = ''):
-        super().__init__(data)
+    def __init__(self, title: str = TITLE, data: pd.DataFrame = DATA, boxcid: object = BOXCONTAINERID,
+                 columnx: str = '', columny: str = ''):
+        super().__init__()
         self.data = data
         self.title = title
         self.boxcid = boxcid
@@ -513,7 +586,7 @@ class BoxCharts(Settings):
 
     # 新增盒鬚圖x的columnx
     # def _get_data_column_select(self, id_, placeholder):
-    #     labels = self._get_select(self.data)
+    #     labels = self._get_select(self.datas)
     #     placeholder = placeholder
     #     return dbc.Select(
     #         options=labels,
@@ -613,7 +686,7 @@ class ScatterPlots(Settings):
                     html.Div(
                         [super().gen_data_dropdown(data=self.data, top_id=self.scaid, id_='color',
                                                    placeholder='Color', multi=False, numeric=False),
-                         # dcc.Dropdown(super().get_select(self.data), placeholder='Color',
+                         # dcc.Dropdown(super().get_select(self.datas), placeholder='Color',
                          #              id=f'{self.scaid}_color', ),
                          ]
                     ),
@@ -659,7 +732,7 @@ class HeatMap(Settings):
     LEFT: int = 4
 
     def __init__(self, data: pd.DataFrame = DATA, heatid: str = None):
-        super().__init__(data)
+        super().__init__()
         self.heatid = heatid
         self.data = data
         self.corr = data.corr()
@@ -699,10 +772,20 @@ class HeatMap(Settings):
                 fig.layout.annotations[i].text = ""
         return fig
 
-    def gen_heatmap(self,
-                    title=TITLE,
-                    left=LEFT,
-                    id_: str = None):
+    def gen_heatmap_con(self,
+                        title=TITLE,
+                        left=LEFT,
+                        id_: str = None):
+        """
+        :param title:
+        :type title: str
+        :param left:dbc.col width
+        :type left: int
+        :param id_: container's id
+        :type id_: str
+        :return: dbc.Container with html output
+        :rtype: dbc.Container
+        """
         title = title
         left = left
         id_ = id_

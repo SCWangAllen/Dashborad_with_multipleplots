@@ -188,8 +188,8 @@ class DataTables:
             style_table=table_style,
             style_cell=table_cell_style,
             page_size=11,
-            # fixed_columns={'headers': True, 'data': 2},
-            fixed_rows={'headers': True, 'data': 0}
+            # fixed_columns={'headers': True, 'datas': 2},
+            fixed_rows={'headers': True, 'datas': 0}
         )
 
     def _get_datades_table(self):
@@ -247,7 +247,7 @@ class DataTables:
         ])
 
 
-# data variables
+# datas variables
 
 data_bar = px.data.gapminder()
 long_df = px.data.medals_long()
@@ -268,7 +268,7 @@ dataclass = DataTables(data=data_bar)
 datainfo = dataclass.gen_tabled_info(title="info")
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
-corrheatmap = pg.HeatMap(data=data_bar).gen_heatmap(title="Correlation Heatmap")
+corrheatmap = pg.HeatMap(data=data_bar).gen_heatmap_con(title="Correlation Heatmap")
 
 '''
     id的規則，在建立物件的同時，要給定id=containerid，裡面的select column的id格式為figid_y(或y)

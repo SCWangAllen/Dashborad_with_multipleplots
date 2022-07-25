@@ -209,7 +209,7 @@ bleow_nav = dbc.Container([
         html.H2("Data Analysis", className="lead", style={'text-align': 'center', 'font-weight': 'bold'}),
         html.Hr(),
     ])
-])
+], style={'min-height': '0px'})
 df_train = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\train.csv")
 df_test = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\test.csv")
 topbar = pg.TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
@@ -219,6 +219,7 @@ PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0
 PBox = pg.BoxCharts(data=df_train, boxcid='box1', columnx=df_train.columns[0], columny=df_train.columns[1])
 PCorrHeatmap = pg.HeatMap(data=df_train, heatid='heat1')
 PScatter = pg.ScatterPlots(data=df_train, scaid='sca1')
+PDis = pg.Displot(data=df_train, disid='dis1')
 dataclass = DataTables(data=df_train)
 datainfo = dataclass.gen_tabled_info()
 datapreview = dataclass.gen_preview_table(title="Preview", left=0)
@@ -237,7 +238,8 @@ app.layout = html.Div(
         PLine.gen_linecontainter(fig_id='linefig'),
         PBox.gen_boxcontainer(fig_id='boxfig'),
         PScatter.gen_scacon(fig_id='scafig', x=df_train.columns[0], y=df_train.columns[-1]),
-        PCorrHeatmap.gen_heatmap(title="Correlation Heatmap", id_='heatfig')])
+        PDis.gen_dis_con(fig_id='disfig', hist_data=df_train.columns[-1], group_labels=df_train.columns[-1]),
+        PCorrHeatmap.gen_heatmap_con(title="Correlation Heatmap", id_='heatfig')])
 
 
 # barchart callback
@@ -275,7 +277,7 @@ def update_bar(state, barx, bary, color,
     # Input('line1_y', 'value'),
     prevent_initial_call=True
 )
-def update_line(State, linex, liney, color, text):
+def update_line(state, linex, liney, color, text):
     fig = PLine.gen_updata_line(columnx=linex, columny=liney, color=color, text=text)
     # fig.update_layout(yaxis=dict)
     print(color, type(color))
@@ -301,7 +303,7 @@ def show_maxin(x, y):
                                            html.Tr(f'y_min={y_min}')]))
         # print(x)
         # print(y)
-        # print(PLine.data.columns)
+        # print(PLine.datas.columns)
         # print(x_max, y_max)
         return table_body
 
@@ -342,7 +344,7 @@ def show_maxin(x, y):
                                            html.Tr(f'y_min={y_min}')]))
         # print(x)
         # print(y)
-        # print(PLine.data.columns)
+        # print(PLine.datas.columns)
         # print(x_max, y_max)
         return table_body
 
