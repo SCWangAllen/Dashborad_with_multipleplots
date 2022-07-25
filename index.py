@@ -62,16 +62,40 @@ SIDEBAR_STYLE = {
     "padding": "2rem 1rem",
 }
 
-sidebar = dbc.Navbar([
-    dbc.Container(
-        [
-            dbc.Row([
-
-                dbc.Col(dbc.NavLink('Home', href='/', active='exact'), width=10),
-                dbc.Col(dbc.NavLink('Preview', href='/preview', active='exact'), width=1),
-                dbc.Col(dbc.NavLink('DataClean', href='/dataclean', active='exact'), width=1)]),
-        ], id='mainnavbar'),
-])
+# sidebar = dbc.Navbar([
+#     dbc.Container(
+#         [
+#             dbc.Row([
+#
+#                 dbc.Col(dbc.NavLink('Home', href='/', active='exact'), width=10),
+#                 dbc.Col(dbc.NavLink('Preview', href='/preview', active='exact'), width=1),
+#                 dbc.Col(dbc.NavLink('DataClean', href='/dataclean', active='exact'), width=1)]),
+#         ], id='side_bar'),
+# ])
+sidebar = html.Div(
+    [
+        html.H4("Data Review"),
+        html.Hr(),
+        # dbc.InputGroup([
+        #     dbc.Select(
+        #         options=our_data_select,
+        #         id="dataset_select",
+        #         placeholder=our_data_list[0]
+        #     ),
+        # ]),
+        dbc.Button("選擇資料集", id="select_state", n_clicks=0),
+        dbc.Nav(
+            [
+                dbc.NavLink("主資料", href="#alldata", external_link=True),  # external_link能讓她強制轉到我想要的頁面
+                dbc.NavLink("Historgram", href="#histogram_graph", external_link=True),
+                dbc.NavLink("Bar Chart", href="#barchart_graph", external_link=True),
+            ],
+            vertical=True,
+            pills=True,
+        ),
+    ],
+    id='side_bar'
+)
 bleow_nav = dbc.Container([
     dbc.Row([
         html.Hr(),
