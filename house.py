@@ -214,15 +214,15 @@ df_train = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\t
 df_test = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\test.csv")
 topbar = pg.TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
 
-PBarchart = pg.BarAndDes(data=df_train, barcid='bar1', columnx=df_train.columns[0], columny=df_train.columns[1])
-PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0], columny=df_train.columns[1])
+PBarchart = pg.BarAndDes(data=df_train, barcid='bar1', columnx=df_train.columns[0], columny=df_train.columns[1],content='')
+PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0], columny=df_train.columns[1],)
 PBox = pg.BoxCharts(data=df_train, boxcid='box1', columnx=df_train.columns[0], columny=df_train.columns[1])
 PCorrHeatmap = pg.HeatMap(data=df_train, heatid='heat1')
 PScatter = pg.ScatterPlots(data=df_train, scaid='sca1')
 PDis = pg.Displot(data=df_train, disid='dis1')
 dataclass = DataTables(data=df_train)
-datainfo = dataclass.gen_tabled_info()
-datapreview = dataclass.gen_preview_table(title="Preview", left=0)
+datainfo = dataclass.gen_tabled_info(title='Data Info')
+datapreview = dataclass.gen_preview_table(title="Data Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
 
 app.layout = html.Div(
@@ -235,10 +235,10 @@ app.layout = html.Div(
         datainfo,
         datades,
         PBarchart.gen_barcontainer(fig_id='barfig'),
-        PLine.gen_linecontainter(fig_id='linefig'),
+        PLine.gen_linecontainter(fig_id='linefig',line_contents=''),
         PBox.gen_boxcontainer(fig_id='boxfig'),
         PScatter.gen_scacon(fig_id='scafig', x=df_train.columns[0], y=df_train.columns[-1]),
-        PDis.gen_dis_con(fig_id='disfig', hist_data=df_train.columns[-1], group_labels=df_train.columns[-1]),
+        PDis.gen_dis_con(fig_id='disfig', hist_data=[df_train.columns[-1]], group_labels=df_train.columns[-1]),
         PCorrHeatmap.gen_heatmap_con(title="Correlation Heatmap", id_='heatfig')])
 
 
@@ -402,6 +402,34 @@ def updata_heatmap(state, var):
         var_list.append(html.Tr(f'{i + 1}. {var[i]}'))
     table_body = dbc.Table(html.Tbody(var_list))
     return PCorrHeatmap.gen_update(var=var), table_body
+
+
+@app.callback(
+    Output('disfig', 'figure'),
+    Input('dis1_state', 'n_clicks'),
+    State('dis1_hist_data', 'value'),
+    # State('sca1_x_range_max', 'value'),
+    # State('sca1_x_range_min', 'value'),
+    State('dis1_width', 'value'),
+    State('dis1_height', 'value'),
+    State('dis1_logp', 'value'),
+    State('dis1_normal', 'value'),
+    State('dis1_int', 'value'),
+    prevent_initial_call=True
+)
+def updata_dis(state, hist_data, width, height, logp, normal, ints):
+    print(normal)
+    print(state)
+    print(hist_data)
+    if ints is not None:
+        ints = int(ints)
+    else:
+        ints = None
+    if width is not None and height is not None:
+        return PDis.gen_dis_plot(datacols=hist_data, width=int(width), height=int(height), logp=logp,
+                                 reducerange=ints)
+    else:
+        return PDis.gen_dis_plot(datacols=hist_data, logp=logp, reducerange=ints)
 
 
 if __name__ == '__main__':

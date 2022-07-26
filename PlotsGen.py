@@ -1,4 +1,5 @@
 import dash_bootstrap_components as dbc
+import numpy as np
 from dash import dcc, html
 import io  # 自動檢查資料需要之模組
 import plotly.express as px
@@ -46,11 +47,16 @@ class Settings:
     """
     LEFT: int = 4
     COLOR: list or str = []
+    TFOPTIONS = [{"label": "True", 'value': True},
+                 {'label': "False", 'value': False}]
+    WIDTH: int = 1000
+    HEIGHT: int = 500
 
     def __init__(self, datas: bool = None,
                  left: int = LEFT):
         self.datas = datas
         self.left = left
+        self.tfoption = self.TFOPTIONS
 
     @staticmethod
     def get_select(data):
@@ -89,23 +95,19 @@ class Settings:
         datades = self.get_data_description(data)
         options = []
         if numeric:
-            for i in range(len(data.columns) - 1):
+            for i in range(len(data.columns) ):
                 if datades['Dtype'][i] != 'object':
                     options.append({
                         "label": f'{data.columns[i]}({data[data.columns[i]].dtypes})',
                         "value": data.columns[i],
                     })
-                else:
-                    pass
         elif numeric is False:
-            for i in range(len(data.columns) - 1):
+            for i in range(len(data.columns) ):
                 if datades['Dtype'][i] == 'object':
                     options.append({
                         "label": f'{data.columns[i]}({data[data.columns[i]].dtypes})',
                         "value": data.columns[i],
                     })
-                else:
-                    pass
         else:
             options = self.get_select(data)
 
@@ -319,7 +321,31 @@ class BarAndDes(Settings):
                                       placeholder='barmode',
                                       id=f'{self.containerid}_barmode'),
                          ]
-                    ), dbc.Button('作圖', id=f'{self.containerid}_state', n_clicks=0),
+                    ),
+                    dbc.InputGroup(
+                        [
+                            dbc.InputGroupText("X-range_min", ),
+                            dbc.Input(id=f'{self.containerid}_x_range_min', ),
+                            dbc.InputGroupText("X-range_max", ),
+                            dbc.Input(id=f'{self.containerid}_x_range_max', ),
+                        ]
+                    ),
+                    dbc.InputGroup(
+                        [
+                            dbc.InputGroupText("Y-range_min", ),
+                            dbc.Input(id=f'{self.containerid}_y_range_min', ),
+                            dbc.InputGroupText("Y-range_max", ),
+                            dbc.Input(id=f'{self.containerid}_y_range_max', ),
+                        ]
+                    ),
+                    dbc.InputGroup(
+                        [dbc.InputGroupText("width", ),
+                         dbc.Input(id=f'{self.containerid}_width', ),
+                         dbc.InputGroupText("height", ),
+                         dbc.Input(id=f'{self.containerid}_height', ),
+                         ]
+                    ),
+                    dbc.Button('作圖', id=f'{self.containerid}_state', n_clicks=0),
                     html.Div(bar_contents, id=f'{self.containerid}_content')]), width=4),
                 dbc.Col(dcc.Graph(figure=bar, id=fig_id), width=8)
             ])
@@ -369,13 +395,46 @@ class Displot(Settings):
         self.data = data
         self.disid = disid
 
-    def gen_dis_plot(self, hist_data, group_labels=None, show_hist: bool = True):
-        if group_labels is None:
-            group_labels = ['displot']
-        # print(self.data[hist_data].to_list())
-        # fig = ff.create_distplot(hist_data=self.data[hist_data], group_labels=group_labels,
-        #                          show_hist=show_hist)
-        fig = px.histogram(self.data[hist_data])
+    def gen_dis_plot(self,
+                     datacols: list,
+                     reducerange: int = None,
+                     logp: bool = False,
+                     show_hist: bool = True,
+                     width: int = None,
+                     height: int = None,
+                     ):
+        """
+        :param height: plot height
+        :type height: int
+        :param width: plot width
+        :type width: int
+        :param show_hist: 是否顯示直方圖
+        :type show_hist:
+        :param datacols: data.columns list
+        :type datacols: list
+        :param reducerange: 資料縮小倍數通常為10，100，1000，10000
+        :type reducerange: int
+        :param logp: 是否取log1p
+        :type logp: bool
+        :return: Figure
+        :rtype: Figure
+        """
+        if width is None:
+            width = self.WIDTH
+        if height is None:
+            height = self.HEIGHT
+        if logp:
+            fig = ff.create_distplot(hist_data=[np.log1p(self.data[c]) for c in datacols],
+                                     group_labels=datacols, show_hist=show_hist)
+        elif reducerange is not None:
+            fig = ff.create_distplot(hist_data=[self.data[c].apply(lambda x: x / reducerange) for c in datacols],
+                                     group_labels=datacols, show_hist=show_hist)
+        else:
+            fig = ff.create_distplot(hist_data=[self.data[c] for c in datacols],
+                                     group_labels=datacols, show_hist=show_hist)
+
+        super().fig_layout_set(fig=fig, width=width, height=height)
+
         return fig
 
     def gen_dis_con(self, hist_data, group_labels,
@@ -387,7 +446,7 @@ class Displot(Settings):
         """
         if left is None:
             left = self.left
-        fig = self.gen_dis_plot(hist_data=hist_data, group_labels=group_labels)
+        fig = self.gen_dis_plot(datacols=hist_data, reducerange=1000)
         return dbc.Container([
             html.Hr(),
             dbc.Row([
@@ -395,23 +454,31 @@ class Displot(Settings):
                     [
                         html.Div(
                             [super().gen_data_dropdown(data=self.data, top_id=self.disid,
-                                                       id_="hist_data", multi=True, placeholder='Hist_data'), ]),
-                        html.Div(
-                            [super().gen_data_dropdown(data=self.data, top_id=self.disid,
-                                                       id_="group_label", multi=True, placeholder='Hist_data'), ]),
-                        dbc.InputGroup(
-                            [
-                                dbc.InputGroupText("X-range_min", ),
-                                dbc.Input(id=f'{self.disid}_x_range_min', ),
-                                dbc.InputGroupText("X-range_max", ),
-                                dbc.Input(id=f'{self.disid}_x_range_max', ),
-                            ]
-                        ),
+                                                       id_="hist_data", multi=True, placeholder='Hist_data',
+                                                       numeric=True), ]),
+                        # dbc.InputGroup(
+                        #     [
+                        #         dbc.InputGroupText("X_min", ),
+                        #         dbc.Input(id=f'{self.disid}_x_range_min', ),
+                        #         dbc.InputGroupText("X_max", ),
+                        #         dbc.Input(id=f'{self.disid}_x_range_max', ),
+                        #     ]
+                        # ),
                         dbc.InputGroup(
                             [dbc.InputGroupText("width", ),
                              dbc.Input(id=f'{self.disid}_width', ),
                              dbc.InputGroupText("height", ),
                              dbc.Input(id=f'{self.disid}_height', ),
+                             ]
+                        ),
+                        dbc.InputGroup(
+                            [dbc.InputGroupText("logp", ),
+                             dbc.RadioItems(options=self.TFOPTIONS,
+                                            id=f'{self.disid}_logp', ),
+                             dbc.InputGroupText("normalize", ),
+                             dbc.RadioItems(options=self.TFOPTIONS, id=f'{self.disid}_normal', ),
+                             dbc.InputGroupText("int"),
+                             dbc.Input(id=f'{self.disid}_int', )
                              ]
                         ),
                         html.Div(id=f'{self.disid}_xy_range_word'),
@@ -657,13 +724,17 @@ class ScatterPlots(Settings):
 
     def gen_scatter(self, columnx,
                     columny,
-                    width: int = 1000,
-                    height: int = 500,
+                    width: int = None,
+                    height: int = None,
                     tmeplate: str = "plotly_white",
                     x_range: list = None,
                     y_range: list = None,
                     color: str = None,
                     ):
+        if width is None:
+            width = self.WIDTH
+        if height is None:
+            height = self.HEIGHT
         fig = px.scatter(data_frame=self.data, x=columnx, y=columny, color=color)
         super().fig_layout_set(fig=fig, width=width, height=height, template=tmeplate,
                                xaxis_range=x_range, yaxis_range=y_range, )
