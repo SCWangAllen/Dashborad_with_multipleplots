@@ -95,14 +95,14 @@ class Settings:
         datades = self.get_data_description(data)
         options = []
         if numeric:
-            for i in range(len(data.columns) ):
+            for i in range(len(data.columns)):
                 if datades['Dtype'][i] != 'object':
                     options.append({
                         "label": f'{data.columns[i]}({data[data.columns[i]].dtypes})',
                         "value": data.columns[i],
                     })
         elif numeric is False:
-            for i in range(len(data.columns) ):
+            for i in range(len(data.columns)):
                 if datades['Dtype'][i] == 'object':
                     options.append({
                         "label": f'{data.columns[i]}({data[data.columns[i]].dtypes})',
@@ -291,9 +291,15 @@ class BarAndDes(Settings):
     def gen_barcontainer(self,
                          bar_contents: str = CONTENT,
                          fig_id: str = None,
+                         columnx=None,
+                         columny=None,
+                         title: str = TITLE,
+                         color: str = None,
+                         barmode: str = None
                          ):
+        title = title
         bar_contents = bar_contents
-        bar = self._gen_barchart()
+        bar = self.gen_updata_bar(columnx=columnx, columny=columny, title=title, color=color, barmode=barmode)
         return dbc.Container([
             html.Hr(),
             dbc.Row([
@@ -402,8 +408,12 @@ class Displot(Settings):
                      show_hist: bool = True,
                      width: int = None,
                      height: int = None,
+                     bin_size=None,
+                     curve_type='kde',
                      ):
         """
+        :param bin_size: 
+        :type bin_size: 
         :param height: plot height
         :type height: int
         :param width: plot width
@@ -423,15 +433,19 @@ class Displot(Settings):
             width = self.WIDTH
         if height is None:
             height = self.HEIGHT
+        if bin_size is None:
+            bin_size = 1
         if logp:
             fig = ff.create_distplot(hist_data=[np.log1p(self.data[c]) for c in datacols],
-                                     group_labels=datacols, show_hist=show_hist)
+                                     group_labels=datacols, show_hist=show_hist, bin_size=bin_size,
+                                     curve_type=curve_type)
         elif reducerange is not None:
             fig = ff.create_distplot(hist_data=[self.data[c].apply(lambda x: x / reducerange) for c in datacols],
-                                     group_labels=datacols, show_hist=show_hist)
+                                     group_labels=datacols, show_hist=show_hist, curve_type=curve_type)
         else:
             fig = ff.create_distplot(hist_data=[self.data[c] for c in datacols],
-                                     group_labels=datacols, show_hist=show_hist)
+                                     group_labels=datacols, show_hist=show_hist, bin_size=bin_size,
+                                     curve_type=curve_type)
 
         super().fig_layout_set(fig=fig, width=width, height=height)
 
@@ -469,6 +483,9 @@ class Displot(Settings):
                              dbc.Input(id=f'{self.disid}_width', ),
                              dbc.InputGroupText("height", ),
                              dbc.Input(id=f'{self.disid}_height', ),
+                             dbc.InputGroupText("bin_size", ),
+                             dbc.Input(id=f'{self.disid}_bin', )
+                                ,
                              ]
                         ),
                         dbc.InputGroup(
@@ -635,13 +652,11 @@ class BoxCharts(Settings):
     CONTENT: any = ''
 
     def __init__(self, title: str = TITLE, data: pd.DataFrame = DATA, boxcid: object = BOXCONTAINERID,
-                 columnx: str = '', columny: str = ''):
+                 ):
         super().__init__()
         self.data = data
         self.title = title
         self.boxcid = boxcid
-        self.columnx = columnx
-        self.columny = columny
 
     # 生產select的html輸出
     def _get_data_column_select(self, id_, placeholder):
@@ -661,15 +676,17 @@ class BoxCharts(Settings):
     #         placeholder=placeholder
     #     )
 
-    def _gen_boxchart(self):
-        fig = px.box(data_frame=self.data, x=self.columnx, y=self.columny, title=self.title, template='nice')
-        super().fig_layout_set(fig, width=1000, height=500, template='nice')
-        return fig
+    # def _gen_boxchart(self):
+    #     fig = px.box(data_frame=self.data, x=self.columnx, y=self.columny, title=self.title, template='nice')
+    #     super().fig_layout_set(fig, width=1000, height=500, template='nice')
+    #     return fig
 
     def gen_boxcontainer(self,
                          box_contents: any = CONTENT,
-                         fig_id: str = None):
-        boxplot = self._gen_boxchart()
+                         fig_id: str = None,
+                         columnx=None,
+                         columny=None):
+        boxplot = self.gen_box(columnx=columnx, columny=columny)
         fig_id = fig_id
         box_contents = box_contents
         return dbc.Container([
@@ -699,7 +716,7 @@ class BoxCharts(Settings):
             ])
         ])
 
-    def gen_updata(self, columnx, columny, color, boxmode):
+    def gen_box(self, columnx, columny=None, color=None, boxmode=None):
         """
         callback的更新，返回figure
 

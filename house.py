@@ -7,12 +7,13 @@ from dash import dash_table
 import os as os
 import numpy as np
 # import pdpipe as pdp
-import io  # 自動檢查資料需要之模組
+
 # import plotly.express as px
 # import plotly.graph_objs as go
 # import plotly.io as pio
 # import plotly.figure_factory as ff  # 畫heatmap的時候用到的
 import PlotsGen as pg
+import DataProcess as dp
 
 SIDEBAR_STYLE = {
     "position": "fixed",
@@ -29,148 +30,6 @@ app = dash.Dash(
 )
 server = app.server
 app.title = 'House Price EDA'
-
-
-class DataTables:
-    TITLE: str = 'Default'
-    LEFT: int = 4
-    RIGHT: int = 8
-
-    def __init__(self,
-                 data: pd.DataFrame,
-                 left=LEFT, ):
-        self.data = data
-        self.left = left
-        self.right = 12 - left
-
-    # pd.description的reformat再輸出
-    def _get_data_description(self):
-        buffer = io.StringIO()
-        self.data.info(buf=buffer)
-        lines = buffer.getvalue().splitlines()
-        details = (pd.DataFrame([x.split() for x in lines[5:-2]], columns=lines[3].split())
-                   .drop('Count', axis=1)
-                   .rename(columns={'Non-Null': 'Non-Null Count'})
-                   .rename(columns={'#': 'number'}))
-        unique_value = []
-        for i in self.data.columns:
-            unique_value.append(len(self.data[i].unique()))
-        details['unique'] = unique_value
-        return details
-
-    # 將任何DF的column調成datatable的column的輸出結構
-    @staticmethod
-    def _get_data_column_data_table(anydf: pd.DataFrame):
-        column = anydf.columns.to_list()
-        labels = []
-        for i in column:
-            x = {
-                "name": i,
-                "id": i
-            }
-            labels.append(x)
-        return labels
-
-    # 將任何DF轉成我想要的dataframe樣子，樣式可以在class固定變數調整裡面調整
-
-    @staticmethod
-    def _datable_with_style(data, columns):
-        table_header_style = {
-            'background-color': 'rgb(210, 210, 210)',
-            'font-weight': 'bold',
-            'font-size': '12px',
-            'text-align': 'left',
-        }
-        table_data_style = {
-            'font-size': '12px',
-            'text-align': 'left',
-            'whiteSpace': 'none',
-            'height': 'auto',
-            'lineHeight': '15px',
-            'width': "50px"
-        }
-        table_cell_style = {
-            "padding": "5px",
-            "height": "auto",
-            "minWidth": "100px",
-            "width": "1o0px",
-            "maxWidth": "100px",  # all three widths are needed
-            "whiteSpace": "normal",  #
-        }
-        table_style = {"overflow": "hidden",
-                       "padding": "15px", }
-        return dash_table.DataTable(
-            columns=columns,
-            data=data,
-            # style_table={'margin-top': '100px'},
-            style_header=table_header_style,
-            style_data=table_data_style,
-            style_data_conditional=[{
-                'if': {'row_index': 'odd'},
-                'background-color': '#cfd8dc'}],
-            sort_action="native",
-            sort_mode="single",  # 排序模式
-            style_table=table_style,
-            style_cell=table_cell_style,
-            page_size=11,
-            # fixed_columns={'headers': True, 'data': 2},
-            fixed_rows={'headers': True, 'data': 0}
-        )
-
-    def _get_datades_table(self):
-        return self._datable_with_style(columns=self._get_data_column_data_table(self._get_data_description()),
-                                        data=self._get_data_description().to_dict('records'))
-
-    def gen_tabled_info(self,
-                        title: str = TITLE,
-                        left: int = LEFT):
-        left = left
-
-        table = self._get_datades_table()
-        return dbc.Container([
-            html.Hr(),
-            dbc.Row([
-                dbc.Col(dcc.Markdown('''  ''', style={'font-family': '標楷體', 'padding': '15px', 'font-size': '20px'}),
-                        width=left),
-                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
-            ])
-        ])
-
-    def gen_preview_table(self,
-                          title: str = TITLE,
-                          head: int = 500,
-                          left: int = LEFT):
-        head = head
-        title = title
-        left = left
-        table = self._datable_with_style(data=self.data.head(head).to_dict('records'),
-                                         columns=self._get_data_column_data_table(self.data))
-        return dbc.Container([
-            dbc.Row([
-                dbc.Col(dcc.Markdown(), width=left),
-                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
-            ])
-        ])
-
-    #
-    def gen_description_table(self,
-                              title: str = TITLE,
-                              left: int = LEFT,
-                              round_: int = 5):
-        left = left
-        title = title
-        round_ = round_
-        table = self._datable_with_style(
-            data=self.data.describe().round(round_).reset_index().to_dict('records'),
-            columns=self._get_data_column_data_table(self.data.describe().reset_index()))
-        return dbc.Container([
-            html.Hr(),
-            dbc.Row([
-                dbc.Col(dcc.Markdown(), width=left),
-                dbc.Col([html.H4(title, style={'text-align': 'center'}), table], width=(12 - left))
-            ])
-        ])
-
 
 #
 # sidebar = dbc.Navbar([
@@ -211,19 +70,22 @@ bleow_nav = dbc.Container([
     ])
 ], style={'min-height': '0px'})
 df_train = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\train.csv")
+df_train = dp.Data.reduce_mem_usage(df_train)
 df_test = pd.read_csv("E:\\new_Desktop\\python\\Dashborad_with_multipleplots\\test.csv")
 topbar = pg.TopNavbar(otherpage=['1', '2', '3'], href=['bar1', "line1", 'heatmap1'])
 
-PBarchart = pg.BarAndDes(data=df_train, barcid='bar1', columnx=df_train.columns[0], columny=df_train.columns[1],content='')
-PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0], columny=df_train.columns[1],)
-PBox = pg.BoxCharts(data=df_train, boxcid='box1', columnx=df_train.columns[0], columny=df_train.columns[1])
+PBarchart = pg.BarAndDes(data=df_train, barcid='bar1', columnx=df_train.columns[0], columny=df_train.columns[1],
+                         content='')
+PLine = pg.LineAndDes(data=df_train, linecid='line1', columnx=df_train.columns[0], columny=df_train.columns[1], )
+PBox = pg.BoxCharts(data=df_train, boxcid='box1', )
 PCorrHeatmap = pg.HeatMap(data=df_train, heatid='heat1')
 PScatter = pg.ScatterPlots(data=df_train, scaid='sca1')
 PDis = pg.Displot(data=df_train, disid='dis1')
-dataclass = DataTables(data=df_train)
+dataclass = dp.DataTables(data=df_train)
 datainfo = dataclass.gen_tabled_info(title='Data Info')
 datapreview = dataclass.gen_preview_table(title="Data Preview", left=0)
 datades = dataclass.gen_description_table(title="Description")
+datagroupvc = dataclass.gen_groupby_table(cols=['MSSubClass'], othcols='LotConfig', id_="gc", title='Group')
 
 app.layout = html.Div(
     [
@@ -232,11 +94,12 @@ app.layout = html.Div(
         # topbar.gen_topbar(),
         bleow_nav,
         datapreview,
+        datagroupvc,
         datainfo,
         datades,
         PBarchart.gen_barcontainer(fig_id='barfig'),
-        PLine.gen_linecontainter(fig_id='linefig',line_contents=''),
-        PBox.gen_boxcontainer(fig_id='boxfig'),
+        PLine.gen_linecontainter(fig_id='linefig', line_contents=''),
+        PBox.gen_boxcontainer(fig_id='boxfig', columnx=df_train.columns[0], columny=df_train.columns[1]),
         PScatter.gen_scacon(fig_id='scafig', x=df_train.columns[0], y=df_train.columns[-1]),
         PDis.gen_dis_con(fig_id='disfig', hist_data=[df_train.columns[-1]], group_labels=df_train.columns[-1]),
         PCorrHeatmap.gen_heatmap_con(title="Correlation Heatmap", id_='heatfig')])
@@ -320,7 +183,7 @@ def show_maxin(x, y):
 def update_box(state, boxx, boxy, color, boxmode: str = "overlay"):
     print(state)
     boxmode = boxmode
-    fig = PBox.gen_updata(columnx=boxx, columny=boxy, color=color, boxmode=boxmode)
+    fig = PBox.gen_box(columnx=boxx, columny=boxy, color=color, boxmode=boxmode)
     print(color, type(color))
     print(boxmode, type(boxmode))
     return fig
@@ -432,5 +295,17 @@ def updata_dis(state, hist_data, width, height, logp, normal, ints):
         return PDis.gen_dis_plot(datacols=hist_data, logp=logp, reducerange=ints)
 
 
+# @app.callback(
+#     Output(),
+#     Input()
+# )
+# def updata_group_by_table():
+
+
+# @app.callback(
+#     Output(),
+#     State(),
+#     Input()
+# )
 if __name__ == '__main__':
     app.run_server(debug=True, port=3040)

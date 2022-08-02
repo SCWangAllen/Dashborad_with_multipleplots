@@ -25,6 +25,41 @@
 body {
     color: black;
 }
-.container{
+
+.container {
     min-height: 500px;
 }
+
+#group_filter:hover:before {
+    position: absolute;
+    top: 0px;
+    left: -140px;
+    color: #fff;
+    font-size: .8em;
+    background: #346e7a;
+    padding: 5px;
+    border-radius: 5px;
+    content: '是否挑選想觀察之欄位';
+}
+#groupby_text:hover:before {
+    position: absolute;
+    top: 0px;
+    left: -120px;
+    color: #fff;
+    font-size: .8em;
+    background: #346e7a;
+    padding: 5px;
+    border-radius: 5px;
+    content: 'df.groupby(col)';
+}
+/*#groupby_vorc:hover:before {*/
+/*    position: absolute;*/
+/*    top: 0px;*/
+/*    left: -120px;*/
+/*    color: #fff;*/
+/*    font-size: .8em;*/
+/*    background: #346e7a;*/
+/*    padding: 5px;*/
+/*    border-radius: 5px;*/
+/*    content: 'v:df.groupby(col).get_group()  \n c:df.groupby()[othercol]';*/
+/*}*/

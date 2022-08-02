@@ -335,7 +335,7 @@ def update_line(State, linex, liney, color, text):
 )
 def update_box(State, boxx, boxy, color, boxmode: str = "overlay"):
     boxmode = boxmode
-    fig = PBox.gen_updata(columnx=boxx, columny=boxy, color=color, boxmode=boxmode)
+    fig = PBox.gen_box(columnx=boxx, columny=boxy, color=color, boxmode=boxmode)
     print(color, type(color))
     print(boxmode, type(boxmode))
     return fig
