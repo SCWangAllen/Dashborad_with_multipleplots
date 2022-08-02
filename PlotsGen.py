@@ -362,7 +362,8 @@ class BarAndDes(Settings):
                        columny: str = None,
                        title: str = TITLE,
                        color: str = None,
-                       barmode: str = None):
+                       barmode: str = None,
+                       ):
         data = self.data
         columnx = columnx
         columny = columny

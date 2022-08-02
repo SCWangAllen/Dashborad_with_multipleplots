@@ -86,7 +86,7 @@ class DataTables(PlotsGen.Settings):
     TFOPTIONS = [{"label": "True", 'value': True},
                  {'label': "False", 'value': False}]
 
-    def __init__(self, data: pd.DataFrame, left: int = None):
+    def __init__(self, data: pd.DataFrame = None, left: int = None):
 
         super().__init__()
         if left is None:
@@ -111,7 +111,7 @@ class DataTables(PlotsGen.Settings):
 
     # 將任何DF的column調成datatable的column的輸出結構
     @staticmethod
-    def _get_data_column_data_table(anydf: pd.DataFrame):
+    def get_data_column_data_table(anydf: pd.DataFrame):
         column = anydf.columns.to_list()
         labels = []
         for i in column:
@@ -125,7 +125,7 @@ class DataTables(PlotsGen.Settings):
     # 將任何DF轉成我想要的dataframe樣子，樣式可以在class固定變數調整裡面調整
 
     @staticmethod
-    def _datable_with_style(data, columns):
+    def datable_with_style(data, columns):
         table_header_style = {
             'background-color': 'rgb(210, 210, 210)',
             'font-weight': 'bold',
@@ -192,8 +192,8 @@ class DataTables(PlotsGen.Settings):
         return df
 
     def _get_datades_table(self):
-        return self._datable_with_style(columns=self._get_data_column_data_table(self._get_data_description()),
-                                        data=self._get_data_description().to_dict('records'))
+        return self.datable_with_style(data=self._get_data_description().to_dict('records'),
+                                       columns=self.get_data_column_data_table(self._get_data_description()))
 
     def gen_tabled_info(self,
                         title: str = TITLE,
@@ -217,8 +217,8 @@ class DataTables(PlotsGen.Settings):
 
         if left is None:
             left = self.LEFT
-        table = self._datable_with_style(data=self.data.head(head).to_dict('records'),
-                                         columns=self._get_data_column_data_table(self.data))
+        table = self.datable_with_style(data=self.data.head(head).to_dict('records'),
+                                        columns=self.get_data_column_data_table(self.data))
         return dbc.Container([
             dbc.Row([
                 dbc.Col(dcc.Markdown(), width=left),
@@ -236,9 +236,8 @@ class DataTables(PlotsGen.Settings):
         # left = left
         # title = title
         # round_ = round_
-        table = self._datable_with_style(
-            data=self.data.describe().round(round_).reset_index().to_dict('records'),
-            columns=self._get_data_column_data_table(self.data.describe().reset_index()))
+        table = self.datable_with_style(data=self.data.describe().round(round_).reset_index().to_dict('records'),
+                                        columns=self.get_data_column_data_table(self.data.describe().reset_index()))
         return dbc.Container([
             html.Hr(),
             dbc.Row([
@@ -257,23 +256,22 @@ class DataTables(PlotsGen.Settings):
         if left is None:
             left = self.LEFT
         gdata = self.group_by_vc(columns=cols, othcol=othcols)
-        table = self._datable_with_style(data=gdata.to_dict('records'),
-                                         columns=self._get_data_column_data_table(gdata))
+        table = self.datable_with_style(data=gdata.to_dict('records'), columns=self.get_data_column_data_table(gdata))
 
         return dbc.Container([
             html.Hr(),
             dbc.Row([
                 dbc.Col([
                     html.H4('Settings', style={'text-align': 'center'}),
-                        dcc.Dropdown(options=[
-                            {'label': 'by value', "value": 'by value'},
-                            {'label': 'by_col', "value": 'by_col'},
-                        ],
-                            placeholder='Group by col or values'
-                        ),
+                    dcc.Dropdown(options=[
+                        {'label': 'by value', "value": 'by value'},
+                        {'label': 'by_col', "value": 'by_col'},
+                    ],
+                        placeholder='Group by col or values'
+                    ),
                     html.Div([
                         dbc.InputGroup(
-                            [dbc.InputGroupText("GroupBy",id='groupby_text' ),
+                            [dbc.InputGroupText("GroupBy", id='groupby_text'),
                              dbc.Select(options=self.get_select(self.data),
                                         id=f'{id_}_x',
                                         placeholder="Choose col"),

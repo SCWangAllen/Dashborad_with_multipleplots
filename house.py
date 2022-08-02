@@ -295,17 +295,6 @@ def updata_dis(state, hist_data, width, height, logp, normal, ints):
         return PDis.gen_dis_plot(datacols=hist_data, logp=logp, reducerange=ints)
 
 
-# @app.callback(
-#     Output(),
-#     Input()
-# )
-# def updata_group_by_table():
 
-
-# @app.callback(
-#     Output(),
-#     State(),
-#     Input()
-# )
 if __name__ == '__main__':
     app.run_server(debug=True, port=3040)
